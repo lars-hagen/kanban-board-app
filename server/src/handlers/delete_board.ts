@@ -1,16 +1,34 @@
 
+import { db } from '../db';
+import { boardsTable } from '../db/schema';
 import { type Board } from '../schema';
+import { eq, and } from 'drizzle-orm';
 
 export async function deleteBoard(boardId: number, userId: number): Promise<Board> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is deleting a board owned by the authenticated user.
-    // Should verify ownership and delete the board (cascade will handle lists/tasks).
-    return Promise.resolve({
-        id: boardId,
-        title: 'Deleted Board',
-        description: null,
-        user_id: userId,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Board);
+  try {
+    // First, verify the board exists and belongs to the user
+    const existingBoard = await db.select()
+      .from(boardsTable)
+      .where(and(eq(boardsTable.id, boardId), eq(boardsTable.user_id, userId)))
+      .execute();
+
+    if (existingBoard.length === 0) {
+      throw new Error('Board not found or not owned by user');
+    }
+
+    // Delete the board (cascade will handle lists/tasks)
+    const result = await db.delete(boardsTable)
+      .where(and(eq(boardsTable.id, boardId), eq(boardsTable.user_id, userId)))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error('Failed to delete board');
+    }
+
+    return result[0];
+  } catch (error) {
+    console.error('Board deletion failed:', error);
+    throw error;
+  }
 }
